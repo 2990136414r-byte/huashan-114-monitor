@@ -235,6 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.json")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--test-push", action="store_true")
     parser.add_argument("--loop-minutes", type=int, default=330)
     args = parser.parse_args(argv)
 
@@ -244,6 +245,14 @@ def main(argv: list[str] | None = None) -> int:
     config = load_json(config_path)
     sendkey = os.environ.get("SERVERCHAN_SENDKEY", "").strip()
     state = load_state()
+
+    if args.test_push:
+        ok = send_serverchan(
+            sendkey,
+            "华山114云端监控测试",
+            "GitHub Actions 已成功运行，手机提醒通道正常。",
+        )
+        return 0 if ok else 2
 
     if args.once:
         check_all(config, state, sendkey, dry_run=args.dry_run)

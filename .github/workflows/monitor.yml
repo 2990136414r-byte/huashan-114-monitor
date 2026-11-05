@@ -15,6 +15,10 @@ on:
         description: 'true=不发送通知'
         required: false
         default: 'false'
+      test_push:
+        description: 'true=只发送一条测试通知'
+        required: false
+        default: 'false'
 
 concurrency:
   group: huashan-114-monitor
@@ -47,6 +51,10 @@ jobs:
           SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
           TZ: Asia/Shanghai
         run: |
+          if [ "${{ github.event.inputs.test_push }}" = "true" ]; then
+            python monitor.py --test-push
+            exit $?
+          fi
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.once }}" = "true" ]; then
             if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
               python monitor.py --once --dry-run
