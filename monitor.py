@@ -176,12 +176,25 @@ def current_interval(config: dict[str, Any], now: datetime) -> float:
     return float(config.get("poll_interval_seconds", 60))
 
 
-def check_all(config: dict[str, Any], state: dict[str, Any], sendkey: str, dry_run: bool = False) -> None:
+def check_all(
+    config: dict[str, Any],
+    state: dict[str, Any],
+    sendkey: str,
+    dry_run: bool = False,
+    service_messages: bool = True,
+) -> None:
     now = datetime.now(TZ)
     if state.get("daily", {}).get("date") != today():
-        state["daily"] = {"date": today(), "sent": 0}
+        state["daily"] = {"date": today(), "sent": 0, "heartbeat_date": ""}
+
+    total = 0
+    success_count = 0
+    failure_count = 0
+    remain_lines: list[str] = []
+    error_lines: list[str] = []
 
     for doc in config.get("doctors", []) or []:
+        total += 1
         label = str(doc.get("label", doc.get("keyword", "")))
         doctorid = int(doc.get("doctorid"))
         try:
@@ -189,12 +202,18 @@ def check_all(config: dict[str, Any], state: dict[str, Any], sendkey: str, dry_r
             item = find_doctor(data, doctorid)
             if item is None:
                 log(f"{label}: 未返回该医生")
+                failure_count += 1
+                error_lines.append(f"{label}: 未返回医生")
                 continue
             remain = int(item.get("remainnum", 0) or 0)
+            success_count += 1
         except Exception as exc:
             log(f"{label}: 查询失败 {exc}")
+            failure_count += 1
+            error_lines.append(f"{label}: {exc}")
             continue
 
+        remain_lines.append(f"{label}: remainnum={remain}")
         dstate = state.setdefault("doctors", {}).setdefault(
             str(doctorid), {"last_remain": 0, "last_alert": None}
         )
@@ -227,6 +246,39 @@ def check_all(config: dict[str, Any], state: dict[str, Any], sendkey: str, dry_r
             state["daily"]["sent"] += 1
             dstate["last_alert"] = now.isoformat(timespec="seconds")
 
+    if service_messages and not dry_run:
+        # 连续失败（所有医生都失败）时告警；6 小时内部重复。
+        if total > 0 and success_count == 0:
+            last_failure = state.get("failure_alert_ts")
+            should_send = True
+            if last_failure:
+                try:
+                    gap = (now - datetime.fromisoformat(last_failure)).total_seconds()
+                    should_send = gap >= 6 * 3600
+                except Exception:
+                    pass
+            if should_send:
+                if send_serverchan(
+                    sendkey,
+                    "华山114云端监控异常",
+                    "所有医生查询均失败：\n" + "\n".join(error_lines[:5]),
+                ):
+                    state["failure_alert_ts"] = now.isoformat(timespec="seconds")
+
+        # 每天 12:00 左右发一条平安简报（使用 1 条免费额度）。
+        daily = state["daily"]
+        if (
+            success_count > 0
+            and now.hour == 12
+            and now.minute < 10
+            and daily.get("heartbeat_date") != today()
+            and daily.get("sent", 0) < int(config.get("daily_push_cap", 5))
+        ):
+            content = "云端监控正常运行。\n" + "\n".join(remain_lines)
+            if send_serverchan(sendkey, "华山114云端监控平安简报", content):
+                daily["heartbeat_date"] = today()
+                daily["sent"] += 1
+
     save_state(state)
 
 
@@ -255,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ok else 2
 
     if args.once:
-        check_all(config, state, sendkey, dry_run=args.dry_run)
+        check_all(config, state, sendkey, dry_run=args.dry_run, service_messages=False)
         return 0
 
     started = time.monotonic()
