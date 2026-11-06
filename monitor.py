@@ -307,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ok else 2
 
     if args.once:
-        check_all(config, state, sendkey, dry_run=args.dry_run, service_messages=False)
+        check_all(config, state, sendkey, dry_run=args.dry_run, service_messages=True)
         return 0
 
     started = time.monotonic()

@@ -2,9 +2,9 @@ name: huashan-114-monitor
 
 on:
   schedule:
-    - cron: '5 */4 * * *'
-    - cron: '35 2-23/4 * * *'
-    - cron: '15 1-23/4 * * *'
+    - cron: '*/5 * * * *'
+    - cron: '50-59 9 * * *'
+    - cron: '0-15 10 * * *'
   workflow_dispatch:
     inputs:
       once:
@@ -22,7 +22,7 @@ on:
 
 concurrency:
   group: huashan-114-monitor
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -63,7 +63,7 @@ jobs:
             fi
             exit $?
           fi
-          python monitor.py --loop-minutes 330
+          python monitor.py --once
 
       - name: Show state
         if: always()
