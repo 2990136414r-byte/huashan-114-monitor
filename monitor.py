@@ -238,10 +238,17 @@ def check_all(
             continue
 
         summary = detail_summary(doctorid)
-        content = (
-            f"114 显示 {label} 当前余号：{remain}\n"
-            f"{summary}\n请打开 114 名医导航或华山医院微信查看。"
-        ).strip()
+        if summary:
+            content = (
+                f"114 显示 {label} 当前余号：{remain}\n"
+                f"具体排班：\n{summary}\n"
+                "请打开 114 名医导航或华山医院微信确认。"
+            ).strip()
+        else:
+            content = (
+                f"114 显示 {label} 当前余号：{remain}\n"
+                "114 暂未返回具体日期/时段，请打开页面确认是哪一天。"
+            ).strip()
         if not dry_run and send_serverchan(sendkey, f"陈嬿有号：{label}", content):
             state["daily"]["sent"] += 1
             dstate["last_alert"] = now.isoformat(timespec="seconds")
